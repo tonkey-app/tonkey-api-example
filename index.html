@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Examples</title>
+  </head>
+  <body>
+    <h1 class="text-5xl text-center mt-3">Examples</h1>
+    <p class="text-red-500 text-center mt-6">
+      NOTE: You need to have openmask installed in your browser in order to work
+    </p>
+    <div class="flex flex-col w-screen items-center space-y-2 mt-6">
+      <div class="flex">
+        <p class="mr-2">Chain Id:</p>
+        <input
+          id="chainId"
+          type="text"
+          placeholder="chainId"
+          value="-3"
+          class="border-2 border-black"
+        />
+      </div>
+      <div class="flex">
+        <p class="mr-2">Safe Address:</p>
+        <input
+          id="safeAddress"
+          type="text"
+          placeholder="safeAddress"
+          value="0:1d898cd7f90ae860760cb577cd59084721292a81d14c5fe31bc2bbb531bdd6c4"
+          class="border-2 border-black"
+        />
+      </div>
+      <div class="flex">
+        <p class="mr-2">Owner Address:</p>
+        <input
+          id="userAddr"
+          type="text"
+          placeholder="User Address"
+          class="border-2 border-black"
+          value="kQCmxsVr-UHBmi0lUTAFcI2q7C7zItI8czKuzjBX7yjvhdoM"
+        />
+      </div>
+
+      <button
+        id="validateButton"
+        onclick="validateOwner()"
+        class="border-2 border-black px-2 rounded-md"
+      >
+        is Owner?
+      </button>
+      <div id="isOwner"></div>
+    </div>
+    <div class="flex flex-col w-screen items-center space-y-2 mt-4">
+      <!-- <input
+        id="chainId"
+        type="text"
+        placeholder="chainId"
+        class="border-2 border-black"
+      />
+      <input
+        id="safeAddress"
+        type="text"
+        placeholder="safeAddress"
+        class="border-2 border-black"
+      /> -->
+      <input
+        id="recipient"
+        type="text"
+        placeholder="recipient"
+        class="border-2 border-black"
+      />
+      <input
+        id="amount"
+        type="text"
+        placeholder="amount"
+        class="border-2 border-black"
+      />
+      <button
+        id="genButton"
+        onclick="genToken()"
+        class="border-2 border-black px-2 rounded-md"
+      >
+        Gen Payload
+      </button>
+      <div id="output" class="text-lime-500"></div>
+    </div>
+    <div class="flex flex-col w-screen items-center space-y-2 mt-6">
+      <input
+        id="orderCellBoc"
+        type="text"
+        placeholder="orderCellBoc"
+        class="border-2 border-black"
+      />
+      <button
+        id="signButton"
+        onclick="sign()"
+        class="border-2 border-black px-2 rounded-md"
+      >
+        Sign
+      </button>
+      <div id="output1"></div>
+      <button
+        id="createButton"
+        onclick="create()"
+        class="border-2 border-black px-2 rounded-md"
+      >
+        Create Transfer
+      </button>
+      <input
+        id="queryId"
+        type="text"
+        placeholder="queryId"
+        class="border-2 border-black"
+      />
+      <button
+        id="searchButton"
+        onclick="search()"
+        class="border-2 border-black px-2 rounded-md"
+      >
+        get Status
+      </button>
+      <div id="status"></div>
+      <button
+        id="getBalanceButton"
+        onclick="balance()"
+        class="border-2 border-black px-2 rounded-md"
+      >
+        get Balance
+      </button>
+      <div id="balance"></div>
+    </div>
+  </body>
+  <script src="./js/jquery.min.js"></script>
+  <script src="./js/tonweb.js"></script>
+  <script src="./js/index.js"></script>
+  <script type="text/javascript"></script>
+</html>
