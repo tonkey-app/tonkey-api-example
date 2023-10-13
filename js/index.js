@@ -3,7 +3,7 @@ const Cell = window.TonWeb.boc.Cell;
 const Address = window.TonWeb.Address;
 const bytesToHex = window.TonWeb.utils.bytesToHex;
 
-const baseUrl = "https://graphql.tonkey.app/graphql";
+const baseUrl = "https://v1-graphql.tonkey.app/graphql";
 let chainId = undefined;
 let safeAddress = undefined;
 let ownerAddress = undefined;
