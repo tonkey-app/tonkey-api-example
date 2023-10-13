@@ -1,334 +1,402 @@
-const provider = window.ton;
-const Cell = window.TonWeb.boc.Cell;
-const Address = window.TonWeb.Address;
-const bytesToHex = window.TonWeb.utils.bytesToHex;
+const TonWeb = window.TonWeb;
 
-const baseUrl = "https://v1-graphql.tonkey.app/graphql";
-let chainId = undefined;
-let safeAddress = undefined;
-let ownerAddress = undefined;
-let walletAddress = undefined;
-let safeInfo = undefined;
-let ownerIndex = undefined;
-let recipient = undefined;
-let amount = undefined;
-let orderCellBoc = undefined;
-let res = undefined;
-let queryId = undefined;
-let stat = undefined;
+const BASE_URL = 'https://graphql.tonkey.app/graphql';
 
-function toRawAddress(address) {
-  return new Address(address).toString(false);
-}
+class Tonkey {
+  constructor(baseUrl, provider) {
+    this.baseUrl = baseUrl;
+    this.provider = provider;
 
-async function connect() {
-  const accounts = await provider.send("ton_requestAccounts");
-  walletAddress = accounts[0];
-}
-async function getSafe() {
-  chainId = document.getElementById("chainId").value;
-  safeAddress = document.getElementById("safeAddress").value;
-  const rawAddr = toRawAddress(safeAddress);
-  const reqVar = {
-    chainId: chainId,
-    safeAddress: rawAddr,
-  };
-  try {
-    const response = await fetch(`${baseUrl}`, {
-      method: "POST",
+    this.walletAddress = undefined;
+    this.safeInfo = undefined;
+
+    this.ownerIndex = undefined;
+    this.tx = undefined;
+  }
+  
+  static toRawAddress(address) {
+    return new TonWeb.Address(address).toString(false);
+  }
+
+  static async query(baseUrl, queryString, variables) {
+    const response = await fetch(baseUrl, {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: `query Safe($chainId: String!, $safeAddress: String!) {
-          safe(chainId: $chainId, safeAddress: $safeAddress) {
-            owners {
-              address
-              publicKey
+        query: queryString,
+        variables: variables,
+      }),
+    });
+  
+    if (response.status === 200) {
+      const result = await response.json();
+      if (result.error) {
+        console.log(result.error);
+        throw new Error('GraphQL API Failed');
+      }
+      return result;
+    }
+
+    return null;
+  }
+
+  async connect() {
+    const accounts = await this.provider.send('ton_requestAccounts');
+    this.walletAddress = accounts[0];
+    document.getElementById('walletAddress').innerText = this.walletAddress;
+    document.getElementById('connectArea').style = '';
+    document.getElementById('userAddr').value = this.walletAddress;
+  }
+
+  async getSafe() {
+    const chainId = document.getElementById('chainId').value;
+    const safeAddress = document.getElementById('safeAddress').value;
+
+    const queryString = `query Safe($chainId: String!, $safeAddress: String!) {
+      safe(chainId: $chainId, safeAddress: $safeAddress) {
+        owners {
+          address
+          publicKey
+        }
+      }
+    }`;
+    const variables = {
+      chainId: chainId,
+      safeAddress: Tonkey.toRawAddress(safeAddress),
+    };
+    const result = await Tonkey.query(this.baseUrl, queryString, variables);
+
+    if (result.data.safe) {
+      this.safeInfo = result.data;
+    }
+  }
+
+  async isOwner() {
+    await this.getSafe();
+
+    const userAddress = document.getElementById('userAddr').value;
+    const rawUserAddress = Tonkey.toRawAddress(userAddress);
+
+    const output = window.document.querySelector('#isOwner');
+    if (this.safeInfo.safe) {
+      const owners = this.safeInfo.safe.owners;
+      const ownerIndex = owners
+        .map(e => {
+          return e.address;
+        })
+        .indexOf(rawUserAddress);
+
+      if (ownerIndex !== -1) {
+        this.ownerIndex = ownerIndex;
+        output.innerText = 'is Owner';
+      } else {
+        output.innerText = 'is not Owner';
+      }
+    } else {
+      output.innerText = 'no safe found';
+    }
+  }
+
+  async getTransactionHistory() {
+    const chainId = document.getElementById('chainId').value;
+    const safeAddress = document.getElementById('safeAddress').value;
+
+    const queryString = `query TransactionHistory($chainId: String!, $safeAddress: String!) {
+      transactionHistory(chainId: $chainId, safeAddress: $safeAddress) {
+        details {
+          from
+          to
+          value
+          dataHex
+          hash
+          executedAt
+          fee
+          exitCode
+        }
+        summary {
+          createdAt
+          multiSigExecutionInfo {
+            orderCellBoc
+            queryId
+            expiredAt
+            confirmationsRequired
+            confirmationsSubmitted
+            confirmations
+            executor
+            remark
+          }
+          status
+          transactionInfo {
+            ... on Transfer {
+              transactionType
+              sender
+              recipient
+              direction
+              transferInfo {
+                ... on NativeTransferInfo {
+                  transferType
+                  value
+                }
+                ... on FTTransferInfo {
+                  transferType
+                  tokenAddress
+                  tokenName
+                  tokenSymbol
+                  logoUri
+                  decimals
+                  value
+                }
+                ... on NFTTransferInfo {
+                  transferType
+                  tokenAddress
+                  tokenName
+                  tokenSymbol
+                  logoUri
+                  tokenId
+                }
+              }
+            }
+            ... on Creation {
+              transactionType
+              creator
+            }
+            ... on Cancellation {
+              transactionType
+              isCancellation
             }
           }
-        }`,
-        variables: reqVar,
-      }),
-    });
-    if (response.status === 200) {
-      const result = await response.json();
-      if (result.error) {
-        console.log(result.error);
-        throw new Error("GraphQL API Failed");
+        }
       }
-      if (result.data.safe === null) console.log("no Data");
-      safeInfo = result.data;
+    }`;
+    const variables = {
+      chainId: chainId,
+      safeAddress: Tonkey.toRawAddress(safeAddress),
+    };
+    const result = await Tonkey.query(this.baseUrl, queryString, variables);
+ 
+    if (result.data.transactionHistory.length > 0) {
+      const output = window.document.querySelector('#transactionHistoryResult');
+      output.innerText = JSON.stringify(result.data.transactionHistory, undefined, 2);
     }
-  } catch (e) {
-    console.log(e);
   }
-}
+  
+  async getTransactionQueue() {
+    const chainId = document.getElementById('chainId').value;
+    const safeAddress = document.getElementById('safeAddress').value;
 
-async function validateOwner() {
-  userAddress = document.getElementById("userAddr").value;
-  await connect();
-  await getSafe();
-  let output = window.document.querySelector("#isOwner");
-  const rawAddr = toRawAddress(userAddress);
-  if (safeInfo.safe) {
-    const owners = safeInfo.safe.owners;
-    ownerIndex = owners
-      .map(function (e) {
-        return e.address;
-      })
-      .indexOf(rawAddr);
-    if (ownerIndex !== -1) {
-      output.innerText = "is Owner";
-    } else output.innerText = "is not Owner";
-  } else {
-    output.innerText = "no safe found";
-  }
-  return;
-}
-
-async function genToken() {
-  let output = window.document.querySelector("#output");
-  recipient = document.getElementById("recipient").value;
-  amount = document.getElementById("amount").value;
-  if (!recipient | !amount) {
-    window.alert("please fill all fields");
-    return;
-  }
-  const rawSafeAddr = toRawAddress(safeAddress);
-  const nanoAmount = window.TonWeb.utils.toNano(amount).toString();
-  const reqVar = {
-    chainId: chainId,
-    safeAddress: rawSafeAddr,
-    recipient: recipient,
-    amount: nanoAmount,
-  };
-  try {
-    const response = await fetch(`${baseUrl}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `query TonTransfer($chainId: String!, $safeAddress: String!, $amount: String!, $recipient: String!) {
-              tonTransfer(chainId: $chainId, safeAddress: $safeAddress, amount: $amount, recipient: $recipient) {
-                safeAddress
-                chainId
-                transfer {
-                  sender
-                  recipient
-                  direction
-                  transferInfo {
-                    native {
-                      transferType
-                      value
-                    }
-                  }
+    const queryString = `query TransactionQueue($chainId: String!, $safeAddress: String!) {
+      transactionQueue(chainId: $chainId, safeAddress: $safeAddress) {
+        details {
+          from
+          to
+          value
+          dataHex
+          hash
+          executedAt
+          fee
+          exitCode
+        }
+        summary {
+          createdAt
+          status
+          transactionInfo {
+            ... on Transfer {
+              transactionType
+              sender
+              recipient
+              direction
+              transferInfo {
+                ... on NativeTransferInfo {
+                  transferType
+                  value
                 }
-                multiSigExecutionInfo {
-                  orderCellBoc
-                  queryId
-                  expiredAt
-                  confirmationsRequired
-                  confirmationsSubmitted
-                  confirmations
-                  executor
+                ... on FTTransferInfo {
+                  transferType
+                  tokenAddress
+                  tokenName
+                  tokenSymbol
+                  logoUri
+                  decimals
+                  value
                 }
-              }
-            }`,
-        variables: reqVar,
-      }),
-    });
-    if (response.status === 200) {
-      const result = await response.json();
-      if (result.error) {
-        console.log(result.error);
-        throw new Error("GraphQL API Failed");
-      }
-      if (result.data.safe === null) console.log("no Data");
-      res = result.data;
-    }
-  } catch (e) {
-    console.log(e);
-  }
-  orderCellBoc = res.tonTransfer.multiSigExecutionInfo.orderCellBoc;
-  output.innerText = "get payload successfully";
-  window.document.getElementById("orderCellBoc").value = orderCellBoc;
-}
-
-async function sign() {
-  await connect();
-  const [cell] = Cell.fromBoc(orderCellBoc);
-  const orderHash = bytesToHex(await cell.hash());
-  const signature = await provider.send("ton_rawSign", {
-    data: orderHash,
-  });
-  let output = window.document.querySelector("#output1");
-  output.innerText = "signature: " + signature;
-  res.tonTransfer.multiSigExecutionInfo.confirmations[ownerIndex] = signature;
-  //   res.tonTransfer.transfer.transferInfo.native.value = "1";
-  console.log(res);
-}
-async function create() {
-  const reqVar = { content: res.tonTransfer };
-  console.log(reqVar);
-  queryId = res.tonTransfer.multiSigExecutionInfo.queryId;
-  try {
-    const response = await fetch(`${baseUrl}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `mutation CreateTransfer($content: createTransferReq!) {
-            createTransfer(content: $content) {
-              success
-              error {
-                code
-                detail
-                extra
-              }
-            }
-          }`,
-        variables: reqVar,
-      }),
-    });
-    if (response.status === 200) {
-      const result = await response.json();
-      if (result.error) {
-        console.log(result.error);
-        throw new Error("GraphQL API Failed");
-      }
-      if (result.data.safe === null) console.log("no Data");
-    }
-  } catch (e) {
-    console.log(e);
-  }
-  window.document.getElementById("queryId").value = queryId;
-}
-async function search() {
-  try {
-    const response = await fetch(`${baseUrl}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `query SingleTransaction($queryId: String!) {
-            singleTransaction(queryId: $queryId) {
-              details {
-                from
-                to
-                value
-                dataHex
-                hash
-                executedAt
-                fee
-              }
-              summary {
-                createdAt
-                status
-                transactionInfo {
-                  ... on Transfer {
-                    transactionType
-                    sender
-                    recipient
-                    direction
-                    transferInfo {
-                      ... on NativeTransferInfo {
-                        transferType
-                        value
-                      }
-                      ... on FTTransferInfo {
-                        transferType
-                        tokenAddress
-                        tokenName
-                        tokenSymbol
-                        logoUri
-                        decimals
-                        value
-                      }
-                      ... on NFTTransferInfo {
-                        transferType
-                        tokenAddress
-                        tokenName
-                        tokenSymbol
-                        logoUri
-                        tokenId
-                      }
-                    }
-                  }
-                  ... on Creation {
-                    transactionType
-                    creator
-                  }
-                  ... on Cancellation {
-                    transactionType
-                    isCancellation
-                  }
-                }
-                multiSigExecutionInfo {
-                  orderCellBoc
-                  queryId
-                  expiredAt
-                  confirmationsRequired
-                  confirmationsSubmitted
-                  confirmations
-                  executor
+                ... on NFTTransferInfo {
+                  transferType
+                  tokenAddress
+                  tokenName
+                  tokenSymbol
+                  logoUri
+                  tokenId
                 }
               }
             }
-          }`,
-        variables: { queryId: queryId },
-      }),
-    });
-    if (response.status === 200) {
-      const result = await response.json();
-      if (result.error) {
-        console.log(result.error);
-        throw new Error("GraphQL API Failed");
+            ... on Creation {
+              transactionType
+              creator
+            }
+            ... on Cancellation {
+              transactionType
+              isCancellation
+            }
+          }
+          multiSigExecutionInfo {
+            orderCellBoc
+            queryId
+            expiredAt
+            confirmationsRequired
+            confirmationsSubmitted
+            confirmations
+            executor
+            remark
+          }
+        }
       }
-      if (result.data.safe === null) console.log("no Data");
-      stat = result.data;
+    }`;
+    const variables = {
+      chainId: chainId,
+      safeAddress: Tonkey.toRawAddress(safeAddress),
+    };
+    const result = await Tonkey.query(this.baseUrl, queryString, variables);
+  
+    if (result.data.transactionQueue.length > 0) {
+      const output = window.document.querySelector('#transactionQueueResult');
+      output.innerText = JSON.stringify(result.data.transactionQueue, undefined, 2);
     }
-  } catch (e) {
-    console.log(e);
   }
-  let output = window.document.querySelector("#status");
-  output.innerText = "status: " + stat.singleTransaction.summary.status;
-}
-async function balance() {
-  const rawAddr = toRawAddress(safeAddress);
-  const reqVar = {
-    chainId: chainId,
-    safeAddress: rawAddr,
-  };
-  try {
-    const response = await fetch(`${baseUrl}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `query Balance($chainId: String!, $safeAddress: String!) {
-                balance(chainId: $chainId, safeAddress: $safeAddress) {
-                  fiatTotal
-              }}`,
-        variables: reqVar,
-      }),
-    });
-    if (response.status === 200) {
-      const result = await response.json();
-      if (result.error) {
-        console.log(result.error);
-        throw new Error("GraphQL API Failed");
+
+  async getBalance() {
+    const chainId = document.getElementById('chainId').value;
+    const safeAddress = document.getElementById('safeAddress').value;
+
+    const queryString = `query Balance($chainId: String!, $safeAddress: String!) {
+      balance(chainId: $chainId, safeAddress: $safeAddress) {
+        fiatTotal
+    }}`;
+    const variables = {
+      chainId: chainId,
+      safeAddress: Tonkey.toRawAddress(safeAddress),
+    };
+    const result = await Tonkey.query(this.baseUrl, queryString, variables);
+  
+    const balance = result.data.balance.fiatTotal;
+    const output = window.document.querySelector('#balance');
+    output.innerText = 'balance: ' + balance + ' USD';  
+  }
+
+  async genPayload() {
+    const chainId = document.getElementById('chainId').value;
+    const safeAddress = document.getElementById('safeAddress').value;
+
+    const recipient = document.getElementById('recipient').value;
+    const amount = document.getElementById('amount').value;
+    const remark = document.getElementById('remark').value;
+
+    if (!recipient | !amount) {
+      window.alert('please fill all fields');
+      return;
+    }
+
+    const nanoAmount = window.TonWeb.utils.toNano(amount).toString();
+
+    const queryString = `query TonTransfer($recipient: String!, $amount: String!, $safeAddress: String!, $chainId: String!, $remark: String) {
+      tonTransfer(recipient: $recipient, amount: $amount, safeAddress: $safeAddress, chainId: $chainId, remark: $remark) {
+        chainId
+        multiSigExecutionInfo {
+          confirmations
+          confirmationsRequired
+          confirmationsSubmitted
+          executor
+          expiredAt
+          orderCellBoc
+          queryId
+          safeAddress
+        }
+        safeAddress
+        transfer {
+          direction
+          recipient
+          sender
+          transferInfo {
+            native {
+              transferType
+              value
+            }
+          }
+        }
       }
-      if (result.data.safe === null) console.log("no Data");
-      const balance = result.data.balance.fiatTotal;
-      let output = window.document.querySelector("#balance");
-      output.innerText = "balance: " + balance + " USD";
+    }`;
+    const variables = {
+      chainId: chainId,
+      safeAddress: Tonkey.toRawAddress(safeAddress),
+      recipient: recipient,
+      amount: nanoAmount,
+      remark: remark,
+    };
+
+    const result = await Tonkey.query(this.baseUrl, queryString, variables);
+    if (result.data.tonTransfer) {
+      const orderCellBoc = result.data.tonTransfer.multiSigExecutionInfo.orderCellBoc;
+      this.tx = result.data.tonTransfer;
+      const output = window.document.querySelector('#output');
+      output.innerText = 'get payload successfully';
+      window.document.getElementById('orderCellBoc').value = orderCellBoc;
     }
-  } catch (e) {
-    console.log(e);
+  }
+
+  async sign() {
+    const remark = document.getElementById('remark').value;
+    const orderCellBoc = document.getElementById('orderCellBoc').value;
+
+    const [cell] = TonWeb.boc.Cell.fromBoc(orderCellBoc);
+    const orderHash = TonWeb.utils.bytesToHex(await cell.hash());
+    const signature = await this.provider.send('ton_rawSign', {
+      data: orderHash,
+    });
+
+    const output = window.document.querySelector('#output1');
+    output.innerText = 'signature: ' + signature;
+
+    if (this.ownerIndex === undefined) {
+      await this.isOwner();
+    }
+
+    this.tx.multiSigExecutionInfo.confirmations[this.ownerIndex] = signature;
+    this.tx.multiSigExecutionInfo.remark = remark;
+    delete this.tx.multiSigExecutionInfo.safeAddress;
+
+    console.log(this.tx);
+  }
+
+  async create() {
+    const queryString =  `mutation CreateTransfer($content: createTransferReq!) {
+      createTransfer(content: $content) {
+        error {
+          code
+          detail
+          extra
+        }
+        success
+      }
+    }`
+    console.log(this.tx)
+    const variables = {
+      content: this.tx
+    }
+    const result = await Tonkey.query(this.baseUrl, queryString, variables);
+
+    if (result.data.createTransfer.success) {
+      const queryId = this.tx.multiSigExecutionInfo.queryId;
+      window.document.getElementById('queryId').innerText = queryId;
+    }   
   }
 }
+
+const _ = setInterval(() => {
+  if (window.TonWeb) {
+    if (!window.tonkey) {
+      window.tonkey = new Tonkey(BASE_URL, window.openmask.provider);
+      clearInterval(_);
+    }
+  }
+}, 500);
