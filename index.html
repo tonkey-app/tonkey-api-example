@@ -28,7 +28,7 @@
       </div>
     </div>
 
-    <div id ="connectArea" style="display: none;">
+    <div id="connectArea" style="display: none">
       <div class="flex flex-col w-screen items-center space-y-2 mt-6">
         <div class="flex">
           <p class="mr-2">Chain Id:</p>
@@ -120,7 +120,14 @@
           Create Transfer
         </button>
         <p id="queryId"></p>
-  
+        <button
+          onclick="window.tonkey.getTransactionStatus()"
+          class="border-2 border-black px-2 rounded-md"
+        >
+          Get Transaction Status
+        </button>
+        <p id="txStatus"></p>
+
         <button
           id="getTransactionHistoryButton"
           onclick="window.tonkey.getTransactionHistory()"
@@ -129,7 +136,7 @@
           Get Transaction History
         </button>
         <textarea id="transactionHistoryResult"></textarea>
-  
+
         <button
           id="getTransactionQueueButton"
           onclick="window.tonkey.getTransactionQueue()"
@@ -138,7 +145,7 @@
           Get Transaction Queue
         </button>
         <textarea id="transactionQueueResult"></textarea>
-  
+
         <button
           id="getBalanceButton"
           onclick="window.tonkey.getBalance()"
@@ -149,7 +156,6 @@
         <div id="balance"></div>
       </div>
     </div>
-    
   </body>
   <script src="./js/jquery.min.js"></script>
   <script src="./js/tonweb.js"></script>
