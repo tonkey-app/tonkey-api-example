@@ -13,7 +13,7 @@ class Tonkey {
     this.ownerIndex = undefined;
     this.tx = undefined;
   }
-  
+
   static toRawAddress(address) {
     return new TonWeb.Address(address).toString(false);
   }
@@ -29,7 +29,7 @@ class Tonkey {
         variables: variables,
       }),
     });
-  
+
     if (response.status === 200) {
       const result = await response.json();
       if (result.error) {
@@ -83,7 +83,7 @@ class Tonkey {
     if (this.safeInfo.safe) {
       const owners = this.safeInfo.safe.owners;
       const ownerIndex = owners
-        .map(e => {
+        .map((e) => {
           return e.address;
         })
         .indexOf(rawUserAddress);
@@ -99,10 +99,36 @@ class Tonkey {
     }
   }
 
-  async getTransactionHistory() {
+  async getTransactionStatus() {
     const chainId = document.getElementById('chainId').value;
     const safeAddress = document.getElementById('safeAddress').value;
+    const queryId = document.getElementById('queryId').innerText;
 
+    let status = `Transaction with queryId ${queryId} not found`;
+
+    const transactionQueue = await this._getTransactionQueue(
+      chainId,
+      safeAddress
+    );
+    const q = transactionQueue.find(
+      (tx) => tx.summary.multiSigExecutionInfo?.queryId === queryId
+    );
+    if (q) status = q.summary.status;
+
+    const transactionHistory = await this._getTransactionHistory(
+      chainId,
+      safeAddress
+    );
+    const h = transactionHistory.find(
+      (tx) => tx.summary.multiSigExecutionInfo?.queryId === queryId
+    );
+    if (h) status = h.summary.status;
+
+    const output = window.document.querySelector('#txStatus');
+    output.innerText = status;
+  }
+
+  async _getTransactionHistory(chainId, safeAddress) {
     const queryString = `query TransactionHistory($chainId: String!, $safeAddress: String!) {
       transactionHistory(chainId: $chainId, safeAddress: $safeAddress) {
         details {
@@ -170,22 +196,33 @@ class Tonkey {
         }
       }
     }`;
+
     const variables = {
       chainId: chainId,
       safeAddress: Tonkey.toRawAddress(safeAddress),
     };
+
     const result = await Tonkey.query(this.baseUrl, queryString, variables);
- 
-    if (result.data.transactionHistory.length > 0) {
-      const output = window.document.querySelector('#transactionHistoryResult');
-      output.innerText = JSON.stringify(result.data.transactionHistory, undefined, 2);
-    }
+
+    return result.data.transactionHistory;
   }
-  
-  async getTransactionQueue() {
+
+  async getTransactionHistory() {
     const chainId = document.getElementById('chainId').value;
     const safeAddress = document.getElementById('safeAddress').value;
 
+    const transactionHistory = await this._getTransactionHistory(
+      chainId,
+      safeAddress
+    );
+
+    if (transactionHistory.length > 0) {
+      const output = window.document.querySelector('#transactionHistoryResult');
+      output.innerText = JSON.stringify(transactionHistory, undefined, 2);
+    }
+  }
+
+  async _getTransactionQueue(chainId, safeAddress) {
     const queryString = `query TransactionQueue($chainId: String!, $safeAddress: String!) {
       transactionQueue(chainId: $chainId, safeAddress: $safeAddress) {
         details {
@@ -253,15 +290,29 @@ class Tonkey {
         }
       }
     }`;
+
     const variables = {
       chainId: chainId,
       safeAddress: Tonkey.toRawAddress(safeAddress),
     };
+
     const result = await Tonkey.query(this.baseUrl, queryString, variables);
-  
-    if (result.data.transactionQueue.length > 0) {
+
+    return result.data.transactionQueue;
+  }
+
+  async getTransactionQueue() {
+    const chainId = document.getElementById('chainId').value;
+    const safeAddress = document.getElementById('safeAddress').value;
+
+    const transactionQueue = await this._getTransactionQueue(
+      chainId,
+      safeAddress
+    );
+
+    if (transactionQueue.length > 0) {
       const output = window.document.querySelector('#transactionQueueResult');
-      output.innerText = JSON.stringify(result.data.transactionQueue, undefined, 2);
+      output.innerText = JSON.stringify(transactionQueue, undefined, 2);
     }
   }
 
@@ -278,10 +329,10 @@ class Tonkey {
       safeAddress: Tonkey.toRawAddress(safeAddress),
     };
     const result = await Tonkey.query(this.baseUrl, queryString, variables);
-  
+
     const balance = result.data.balance.fiatTotal;
     const output = window.document.querySelector('#balance');
-    output.innerText = 'balance: ' + balance + ' USD';  
+    output.innerText = 'balance: ' + balance + ' USD';
   }
 
   async genPayload() {
@@ -336,7 +387,8 @@ class Tonkey {
 
     const result = await Tonkey.query(this.baseUrl, queryString, variables);
     if (result.data.tonTransfer) {
-      const orderCellBoc = result.data.tonTransfer.multiSigExecutionInfo.orderCellBoc;
+      const orderCellBoc =
+        result.data.tonTransfer.multiSigExecutionInfo.orderCellBoc;
       this.tx = result.data.tonTransfer;
       const output = window.document.querySelector('#output');
       output.innerText = 'get payload successfully';
@@ -369,7 +421,7 @@ class Tonkey {
   }
 
   async create() {
-    const queryString =  `mutation CreateTransfer($content: createTransferReq!) {
+    const queryString = `mutation CreateTransfer($content: createTransferReq!) {
       createTransfer(content: $content) {
         error {
           code
@@ -378,17 +430,17 @@ class Tonkey {
         }
         success
       }
-    }`
-    console.log(this.tx)
+    }`;
+    console.log(this.tx);
     const variables = {
-      content: this.tx
-    }
+      content: this.tx,
+    };
     const result = await Tonkey.query(this.baseUrl, queryString, variables);
 
     if (result.data.createTransfer.success) {
       const queryId = this.tx.multiSigExecutionInfo.queryId;
       window.document.getElementById('queryId').innerText = queryId;
-    }   
+    }
   }
 }
 
