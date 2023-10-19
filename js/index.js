@@ -362,6 +362,7 @@ class Tonkey {
           orderCellBoc
           queryId
           safeAddress
+          remark
         }
         safeAddress
         transfer {
